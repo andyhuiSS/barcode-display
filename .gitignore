@@ -24,6 +24,9 @@ extensions/*/dist
 
 
 
-# Ignore shopify files created during app dev
+# Ignore Shopify files created during app dev
 .shopify/*
-.shopify.lockextensions/customer-note-barcode/manifest.json
+.shopify.lock
+
+# Generated extension manifest
+extensions/customer-note-barcode/manifest.json
