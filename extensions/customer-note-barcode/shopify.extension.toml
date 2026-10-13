@@ -4,6 +4,8 @@ api_version = "2026-01"
 # Change the merchant-facing name in locales/en.default.json.
 name = "t:name"
 handle = "customernote-barcode"
+
+uid = "ace3f465-c202-5743-49c4-4a4aca9ab67fde979f18"
 type = "ui_extension"
 
 [[extensions.targeting]]

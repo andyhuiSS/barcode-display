@@ -1,3 +1,4 @@
+
 import '@shopify/ui-extensions/preact';
 import {render} from 'preact';
 import {useEffect, useState} from 'preact/hooks';
@@ -30,7 +31,9 @@ export default function extension() {
 
 function BarcodeBlock() {
   const orderId = shopify.data.selected?.[0]?.id;
-  const [barcode, setBarcode] = useState<BarcodeState>({status: 'loading'});
+  const [barcode, setBarcode] = useState<BarcodeState>({
+    status: 'loading',
+  });
 
   useEffect(() => {
     if (!orderId) {
@@ -48,13 +51,25 @@ function BarcodeBlock() {
       })
       .then(({data, errors}) => {
         if (errors?.length) {
-          throw new Error('Shopify returned errors when loading the customer note.');
+          throw new Error(
+            'Shopify returned errors when loading the customer note.'
+          );
         }
 
         if (!active) return;
 
-        const note = data?.order?.customer?.note?.trim();
-        setBarcode(note ? {status: 'ready', note} : {status: 'empty'});
+        if (!data?.order) {
+          setBarcode({status: 'error'});
+          return;
+        }
+
+        const note = data.order.customer?.note?.trim();
+
+        setBarcode(
+          note
+            ? {status: 'ready', note}
+            : {status: 'empty'}
+        );
       })
       .catch((error: unknown) => {
         console.error('Error fetching customer note:', error);
@@ -69,14 +84,23 @@ function BarcodeBlock() {
   return (
     <s-admin-block heading="Store Barcode">
       {barcode.status === 'ready' ? (
-        <s-stack alignItems="center">
-          <s-image
-            alt="Customer note Code 128 barcode"
-            src={`https://barcodeapi.org/api/128/${encodeURIComponent(barcode.note)}`}
-            aspectRatio="4/1"
-            inlineSize="auto"
-            objectFit="contain"
-          />
+        <s-stack
+          direction="inline"
+          justifyContent="center"
+        >
+          <s-box
+            inlineSize="220px"
+            maxInlineSize="100%"
+            paddingBlock="base"
+          >
+            <s-image
+              alt="Customer note Code 128 barcode"
+              src={`https://barcodeapi.org/api/128/${encodeURIComponent(barcode.note)}`}
+              inlineSize="fill"
+              aspectRatio="3/2"
+              objectFit="contain"
+            />
+          </s-box>
         </s-stack>
       ) : (
         <s-text>
