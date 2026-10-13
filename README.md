@@ -1,112 +1,36 @@
-# Barcode Display - Shopify Admin Block Extension
+# Barcode Display - Shopify Admin block extension
 
-This is a Shopify Admin Block Extension that displays the customer note associated with an order in the admin order details page. The extension fetches the note using Shopify's Admin GraphQL API.
+Shows a Code 128 barcode generated from the order customer’s `note` on the Shopify Admin order details page. The extension runs at `admin.order-details.block.render` using API version `2026-01` and Polaris web components (Preact).
 
-## Features
+## How it works
 
-- Extracts the `customer.note` field from the selected order.
-- Displays the customer note within the Shopify admin order details page.
-- Uses the Shopify Admin API for secure data retrieval.
+1. Reads the selected order’s GID from `shopify.data.selected[0].id`.
+2. Uses the authenticated `shopify.query()` Admin GraphQL API to retrieve `order(id) { customer { note } }`.
+3. If a non-empty note exists, renders a barcode image through `https://barcodeapi.org/api/128/` with the value URL-encoded. Otherwise, shows an informative empty or error state; it never generates a barcode for a loading/error placeholder.
 
-## Installation
+The existing `read_orders` and `read_customers` scopes are retained. A guest order or an order whose customer has no note will show `No customer note found.`
 
-### Prerequisites
+**Privacy:** The customer note is included in the request URL to the third-party barcode service (`barcodeapi.org`). Do not use this extension with notes containing personal or confidential data unless that data transfer has been approved. This behavior predates the migration.
 
-- A Shopify Partner account
-- A Shopify development store
-- The Shopify CLI installed
-- Node.js (Latest LTS version recommended)
+## Setup and validation
 
-### Setup Instructions
+1. Install a currently supported Node.js LTS version and the current Shopify CLI (`npm install -g @shopify/cli`).
+2. In the repository root, run `npm install` to resolve Preact and the 2026-01 UI extension packages and **regenerate `package-lock.json`**. Commit the generated lockfile before merging this migration.
+3. Run `shopify app dev` with the existing app and a development store. The Shopify CLI generates `extensions/customer-note-barcode/shopify.d.ts` for the `shopify` global.
+4. Run `npx tsc --noEmit -p extensions/customer-note-barcode/tsconfig.json` and `shopify app build`.
+5. Preview the Order details block against (a) an order whose customer note contains a scannable barcode, (b) an order without a customer note, and (c) a guest order. Confirm the image loads from the barcode provider and is scannable.
+6. Review extension bundle size. Once verified, deploy with `shopify app deploy` to create an updated app version. Deployment is not part of this source change.
 
-1. **Clone the Repository:**
+**Note:** This app’s App Home and auth URLs in `shopify.app.toml` still use Shopify’s template placeholders. They were deliberately left unchanged; validate them separately if using the embedded App Home, as the migration only touches the order-details extension.
 
-   ```sh
-   git clone https://github.com/andyhuiSS/barcode-display.git
-   cd barcode-display
-   ```
+## Upgrade notes (2025-01 to 2026-01)
 
-2. **Install Dependencies:**
+- Replaces `reactExtension`, `render("Playground", ...)`, `useApi`, legacy `AdminBlock`/`Image`/`InlineStack` with the Preact entry point, `shopify.data` / `shopify.query`, and `s-admin-block` / `s-image` / `s-stack`.
+- Leaves the order-to-customer-note GraphQL query and extension target unchanged: both remain available in 2026-01.
+- Updates the extension and webhook API version to `2026-01`.
+- Removes the older React UI extension dependencies; the pre-existing root lockfile must be regenerated against the new workspace dependencies.
 
-   ```sh
-   npm install
-   ```
-
-3. **Authenticate with Shopify:**
-
-   ```sh
-   shopify login --store your-store-name
-   ```
-
-4. **Register the App with Shopify:**
-
-   ```sh
-   shopify app create extension
-   ```
-
-   Follow the prompts and select `Admin Block Extension`.
-
-5. **Run the Extension Locally:**
-
-   ```sh
-   shopify app dev
-   ```
-
-   This will start a local development server and provide a preview link.
-
-## Usage
-
-Once installed and running, the extension will appear in the Shopify admin under **Order Details**. It will:
-
-- Retrieve the selected order's customer note.
-- Display the note inside a block labeled `Store Barcode`.
-
-## Code Structure
-
-- `src/BlockExtension.tsx`: Main React component for the admin block.
-- `shopify.extension.toml`: Configuration file specifying the extension type and target.
-- `package.json`: Lists dependencies and scripts.
-
-## Troubleshooting
-
-### "Expected Hash to be a String" Error
-
-Ensure the GraphQL query is formatted correctly:
-
-```js
-query({
-  query: `query GetOrderCustomerNote($id: ID!) {
-    order(id: $id) {
-      customer {
-        note
-      }
-    }
-  }`,
-  variables: {
-    id: "gid://shopify/Order/1234567890"
-  }
-});
-```
-
-### "Error fetching customer note"
-
-- Check the browser console (`F12 > Console`) for the GraphQL response.
-- Verify the Admin API access scope includes `read_orders`.
-
-### "Order Data: undefined"
-
-- Ensure `data.selected[0]` contains a valid `id`.
-- Log `data` to confirm structure: `console.log(data);`
-
-## License
-
-MIT License
-
-## Author
-
-Andrew Hui
-
-## Contributing
-
-Pull requests are welcome! Please follow best practices and submit issues if you encounter any problems.
-
+Relevant Shopify docs:
+- [Upgrading Admin UI extensions to Polaris web components](https://shopify.dev/docs/apps/build/admin/upgrading-to-2025-10)
+- [Admin UI extension API (2026-01)](https://shopify.dev/docs/api/admin-extensions/2026-01)
+- [Admin GraphQL Customer (2026-01)](https://shopify.dev/docs/api/admin-graphql/2026-01/objects/Customer)

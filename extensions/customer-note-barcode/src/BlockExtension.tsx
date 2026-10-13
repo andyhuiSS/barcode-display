@@ -1,86 +1,116 @@
-import React, { useEffect, useState } from "react";
-import { reactExtension, useApi, AdminBlock, BlockStack, Text, Image, InlineStack } from "@shopify/ui-extensions-react/admin";
-import { render } from '@shopify/ui-extensions-react/admin';
 
-render('Playground', () => <App />)
-
-const TARGET = "admin.order-details.block.render";
-
-// Define TypeScript interfaces for the GraphQL response
-interface Customer {
-  note: string | null; // Note can be null if no note exists
-}
-
-interface Order {
-  customer: Customer | null; // Customer can also be null
-}
+import '@shopify/ui-extensions/preact';
+import {render} from 'preact';
+import {useEffect, useState} from 'preact/hooks';
 
 interface GetOrderCustomerNoteResponse {
-  order: Order;
+  order: {
+    customer: {note: string | null} | null;
+  } | null;
 }
 
-export default reactExtension(TARGET, () => <App />);
+type BarcodeState =
+  | {status: 'loading'}
+  | {status: 'ready'; note: string}
+  | {status: 'empty'}
+  | {status: 'error'};
 
-function App() {
-  const { data, query } = useApi(TARGET);
-  const [customerNote, setCustomerNote] = useState<string>("Loading...");
+const QUERY = `
+  query GetOrderCustomerNote($id: ID!) {
+    order(id: $id) {
+      customer {
+        note
+      }
+    }
+  }
+`;
+
+export default function extension() {
+  render(<BarcodeBlock />, document.body);
+}
+
+function BarcodeBlock() {
+  const orderId = shopify.data.selected?.[0]?.id;
+  const [barcode, setBarcode] = useState<BarcodeState>({
+    status: 'loading',
+  });
 
   useEffect(() => {
-    if (!data || !data.selected || data.selected.length === 0) {
-      console.error("No order selected.");
-      return;
-    }
-
-    // Extract order ID and type it as a string
-    const orderId: string = data.selected[0]?.id;
-
     if (!orderId) {
-      console.error("Error: Order ID is undefined or null.");
+      setBarcode({status: 'error'});
       return;
     }
 
-    console.log("Order ID:", orderId);
+    let active = true;
+    setBarcode({status: 'loading'});
 
-    // Use the 'query' function directly if available
-    query<GetOrderCustomerNoteResponse>(
-      `
-        query GetOrderCustomerNote($id: ID!) {
-          order(id: $id) {
-            customer {
-              note
-            }
-          }
-        }
-      `,
-      {
-        variables: {
-          id: orderId,
-        },
-      }
-    )
-      .then((response) => {
-        console.log("GraphQL Response:", response);
-        if (response.data?.order?.customer?.note) {
-          setCustomerNote(response.data.order.customer.note);
-        } else {
-          setCustomerNote("No note found.");
-        }
+    void shopify
+      .query<GetOrderCustomerNoteResponse>(QUERY, {
+        variables: {id: orderId},
+        version: '2026-01',
       })
-      .catch((error) => {
-        console.error("Error fetching customer note:", error);
-        setCustomerNote("Error loading note.");
-      });
-  }, [data, query]);
+      .then(({data, errors}) => {
+        if (errors?.length) {
+          throw new Error(
+            'Shopify returned errors when loading the customer note.'
+          );
+        }
 
-  const barcodeUrl = `https://barcodeapi.org/api/128/${customerNote}`;
+        if (!active) return;
+
+        if (!data?.order) {
+          setBarcode({status: 'error'});
+          return;
+        }
+
+        const note = data.order.customer?.note?.trim();
+
+        setBarcode(
+          note
+            ? {status: 'ready', note}
+            : {status: 'empty'}
+        );
+      })
+      .catch((error: unknown) => {
+        console.error('Error fetching customer note:', error);
+        if (active) setBarcode({status: 'error'});
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [orderId]);
 
   return (
-    
-    <AdminBlock title="Store Barcode">
-    <InlineStack inlineAlignment="center">
-        <Image alt="barcode" source={barcodeUrl} />
-        </InlineStack>
-    </AdminBlock>
-    
+    <s-admin-block heading="Store Barcode">
+      {barcode.status === 'ready' ? (
+        <s-stack
+          direction="inline"
+          justifyContent="center"
+        >
+          <s-box
+            inlineSize="220px"
+            maxInlineSize="100%"
+            paddingBlock="base"
+          >
+            <s-image
+              alt="Customer note Code 128 barcode"
+              src={`https://barcodeapi.org/api/128/${encodeURIComponent(barcode.note)}`}
+              inlineSize="fill"
+              aspectRatio="3/2"
+              objectFit="contain"
+            />
+          </s-box>
+        </s-stack>
+      ) : (
+        <s-text>
+          {barcode.status === 'loading'
+            ? 'Loading barcode...'
+            : barcode.status === 'empty'
+              ? 'No customer note found.'
+              : 'Unable to load customer note.'}
+        </s-text>
+      )}
+    </s-admin-block>
   );
 }
