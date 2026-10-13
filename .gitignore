@@ -26,4 +26,4 @@ extensions/*/dist
 
 # Ignore shopify files created during app dev
 .shopify/*
-.shopify.lock
+.shopify.lockextensions/customer-note-barcode/manifest.json
